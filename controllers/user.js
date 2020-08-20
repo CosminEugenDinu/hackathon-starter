@@ -43,6 +43,10 @@ exports.postLogin = (req, res, next) => {
       req.flash('errors', info);
       return res.redirect('/login');
     }
+    if (!user.emailVerified){
+      req.flash("errors", {msg: "Sorry! Your email is not verified!\nPlease follow the link we sent to your email."})
+      return res.redirect('/login');
+    }
     req.logIn(user, (err) => {
       if (err) { return next(err); }
       req.flash('success', { msg: 'Success! You are logged in.' });
@@ -77,12 +81,16 @@ exports.getSignup = (req, res) => {
   });
 };
 
+
+
 /**
  * POST /signup
  * Create a new local account.
  */
+
 exports.postSignup = (req, res, next) => {
   const validationErrors = [];
+
   if (!validator.isEmail(req.body.email)) validationErrors.push({ msg: 'Please enter a valid email address.' });
   if (!validator.isLength(req.body.password, { min: 8 })) validationErrors.push({ msg: 'Password must be at least 8 characters long' });
   if (req.body.password !== req.body.confirmPassword) validationErrors.push({ msg: 'Passwords do not match' });
@@ -104,17 +112,117 @@ exports.postSignup = (req, res, next) => {
       req.flash('errors', { msg: 'Account with that email address already exists.' });
       return res.redirect('/signup');
     }
+
     user.save((err) => {
       if (err) { return next(err); }
-      req.logIn(user, (err) => {
-        if (err) {
-          return next(err);
-        }
-        res.redirect('/');
-      });
+      
+     
+      verifyEmail(req, res, next, user);
+    //   req.logIn(user, (err) => {
+    //     if (err) {
+    //       return next(err);
+    //     }
+    //     res.redirect('/');
+    //   });
     });
+   
   });
 };
+
+function verifyEmail (req, res, next, user) {
+  // if (user.emailVerified) {
+  //   req.flash('info', { msg: 'The email address has been verified.' });
+  //   return res.redirect('/account');
+  // }
+
+  if (!mailChecker.isValid(user.email)) {
+    req.flash('errors', { msg: 'The email address is invalid or disposable and can not be verified.  Please update your email address and try again.' });
+    return res.redirect('/account');
+  }
+
+  const createRandomToken = randomBytesAsync(16)
+    .then((buf) => buf.toString('hex'));
+
+  const setRandomToken = (token) => {
+    User
+      .findOne({ email: user.email })
+      .then((user) => {
+        user.emailVerificationToken = token;
+        user = user.save();
+      });
+    // user.emailVerificationToken = token;
+    // user = user.save();
+    return token;
+  };
+
+  const sendVerifyEmail = (token) => {
+    let transporter = nodemailer.createTransport({
+      service: 'SendGrid',
+      auth: {
+        user: process.env.SENDGRID_USER,
+        pass: process.env.SENDGRID_PASSWORD
+      }
+    });
+    const mailOptions = {
+      to: user.email,
+      from: 'hackathon@starter.com',
+      subject: 'Please verify your email address on Hackathon Starter',
+      text: `Thank you for registering with hackathon-starter.\n\n
+        This verify your email address please click on the following link, or paste this into your browser:\n\n
+        http://${req.headers.host}/account/verify/${token}\n\n
+        \n\n
+        Thank you!`
+    };
+    
+    console.log(mailOptions)
+
+    // return transporter.sendMail(mailOptions)
+    //   .then(() => {
+    //     req.flash('info', { msg: `An e-mail has been sent to ${req.user.email} with further instructions.` });
+    //   })
+    //   .catch((err) => {
+    //     if (err.message === 'self signed certificate in certificate chain') {
+    //       console.log('WARNING: Self signed certificate in certificate chain. Retrying with the self signed certificate. Use a valid certificate if in production.');
+    //       transporter = nodemailer.createTransport({
+    //         service: 'SendGrid',
+    //         auth: {
+    //           user: process.env.SENDGRID_USER,
+    //           pass: process.env.SENDGRID_PASSWORD
+    //         },
+    //         tls: {
+    //           rejectUnauthorized: false
+    //         }
+    //       });
+    //       return transporter.sendMail(mailOptions)
+    //         .then(() => {
+    //           req.flash('info', { msg: `An e-mail has been sent to ${req.user.email} with further instructions.` });
+    //         });
+    //     }
+    //     console.log('ERROR: Could not send verifyEmail email after security downgrade.\n', err);
+    //     req.flash('errors', { msg: 'Error sending the email verification message. Please try again shortly.' });
+    //     return err;
+    //   });
+  };
+
+  createRandomToken
+    .then(setRandomToken)
+    .then(sendVerifyEmail)
+    .then(() => {
+        // req.logIn(user, (err) => {
+        //   if (err) {
+        //     return next(err);
+        //   }
+        //   res.redirect('/account');
+        // });
+      res.redirect('/account')
+    })
+    .catch(err => console.log('err from verifyEmail', err));
+};
+
+function _verifyEmail (user) {
+  console.log('from verifyEmail', user.email);
+}
+
 
 /**
  * GET /account
@@ -268,10 +376,6 @@ exports.getReset = (req, res, next) => {
  * Verify email address
  */
 exports.getVerifyEmailToken = (req, res, next) => {
-  if (req.user.emailVerified) {
-    req.flash('info', { msg: 'The email address has been verified.' });
-    return res.redirect('/account');
-  }
 
   const validationErrors = [];
   if (req.params.token && (!validator.isHexadecimal(req.params.token))) validationErrors.push({ msg: 'Invalid Token.  Please retry.' });
@@ -280,29 +384,24 @@ exports.getVerifyEmailToken = (req, res, next) => {
     return res.redirect('/account');
   }
 
-  if (req.params.token === req.user.emailVerificationToken) {
-    User
-      .findOne({ email: req.user.email })
-      .then((user) => {
-        if (!user) {
-          req.flash('errors', { msg: 'There was an error in loading your profile.' });
-          return res.redirect('back');
-        }
-        user.emailVerificationToken = '';
-        user.emailVerified = true;
-        user = user.save();
-        req.flash('info', { msg: 'Thank you for verifying your email address.' });
-        return res.redirect('/account');
-      })
-      .catch((error) => {
-        console.log('Error saving the user profile to the database after email verification', error);
-        req.flash('errors', { msg: 'There was an error when updating your profile.  Please try again later.' });
-        return res.redirect('/account');
-      });
-  } else {
-    req.flash('errors', { msg: 'The verification link was invalid, or is for a different account.' });
+  user = User.findOne({emailVerificationToken: req.params.token})
+
+  user.then((user) => {
+    if (!user) {
+      req.flash('errors', { msg: 'Token not found.' });
+      return res.redirect('back');
+    }
+    user.emailVerificationToken = '';
+    user.emailVerified = true;
+    user = user.save();
+    req.flash('info', { msg: 'Thank you for verifying your email address.' });
     return res.redirect('/account');
-  }
+  })
+  .catch((error) => {
+    console.log('Error saving the user profile to the database after email verification', error);
+    req.flash('errors', { msg: 'There was an error when updating your profile.  Please try again later.' });
+    return res.redirect('/account');
+  });
 };
 
 /**
@@ -351,6 +450,9 @@ exports.getVerifyEmail = (req, res, next) => {
         \n\n
         Thank you!`
     };
+    
+    console.log(mailOptions)
+
     return transporter.sendMail(mailOptions)
       .then(() => {
         req.flash('info', { msg: `An e-mail has been sent to ${req.user.email} with further instructions.` });

@@ -139,7 +139,11 @@ app.post('/signup', userController.postSignup);
 app.get('/contact', contactController.getContact);
 app.post('/contact', contactController.postContact);
 app.get('/account/verify', passportConfig.isAuthenticated, userController.getVerifyEmail);
-app.get('/account/verify/:token', passportConfig.isAuthenticated, userController.getVerifyEmailToken);
+// app.get('/account/verify/:token', passportConfig.isAuthenticated, userController.getVerifyEmailToken);
+app.get('/account/verify/:token', userController.getVerifyEmailToken);
+
+app.get('/account/linksent', (req, res) => res.send('email link sent'));
+
 app.get('/account', passportConfig.isAuthenticated, userController.getAccount);
 app.post('/account/profile', passportConfig.isAuthenticated, userController.postUpdateProfile);
 app.post('/account/password', passportConfig.isAuthenticated, userController.postUpdatePassword);
