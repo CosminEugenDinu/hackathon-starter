@@ -1,7 +1,4 @@
-# Movie Chat App
-
-WIP :: Real-time application build with the MERN stack.
-(more info to be added)
+# Node.js Complete Authentication App
 
 ### *Features*
 
