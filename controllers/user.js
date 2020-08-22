@@ -99,129 +99,74 @@ exports.postSignup = (req, res, next) => {
     req.flash('errors', validationErrors);
     return res.redirect('/signup');
   }
-  req.body.email = validator.normalizeEmail(req.body.email, { gmail_remove_dots: false });
 
-  const user = new User({
-    email: req.body.email,
-    password: req.body.password
-  });
+  req.body.email = validator.normalizeEmail(req.body.email, { gmail_remove_dots: false });
 
   User.findOne({ email: req.body.email }, (err, existingUser) => {
     if (err) { return next(err); }
     if (existingUser) {
       req.flash('errors', { msg: 'Account with that email address already exists.' });
-      return res.redirect('/signup');
+      return res.redirect('/login');
     }
-
-    user.save((err) => {
-      if (err) { return next(err); }
-      
-     
-      verifyEmail(req, res, next, user);
-    //   req.logIn(user, (err) => {
-    //     if (err) {
-    //       return next(err);
-    //     }
-    //     res.redirect('/');
-    //   });
-    });
-   
-  });
-};
-
-function verifyEmail (req, res, next, user) {
-  // if (user.emailVerified) {
-  //   req.flash('info', { msg: 'The email address has been verified.' });
-  //   return res.redirect('/account');
-  // }
-
-  if (!mailChecker.isValid(user.email)) {
-    req.flash('errors', { msg: 'The email address is invalid or disposable and can not be verified.  Please update your email address and try again.' });
-    return res.redirect('/account');
-  }
+  })
 
   const createRandomToken = randomBytesAsync(16)
     .then((buf) => buf.toString('hex'));
 
-  const setRandomToken = (token) => {
-    User
-      .findOne({ email: user.email })
-      .then((user) => {
-        user.emailVerificationToken = token;
-        user = user.save();
+  const user = new User({
+        email: req.body.email,
+        password: req.body.password,
       });
-    // user.emailVerificationToken = token;
-    // user = user.save();
-    return token;
-  };
 
-  const sendVerifyEmail = (token) => {
-    let transporter = nodemailer.createTransport({
-      service: 'SendGrid',
-      auth: {
-        user: process.env.SENDGRID_USER,
-        pass: process.env.SENDGRID_PASSWORD
-      }
+  createRandomToken
+    .then(token => {
+      user.emailVerificationToken = token;
+      return user.save();
+    })
+    .then(user => {
+      validation_link = `http://${req.headers.host}/account/verify/${user.emailVerificationToken}`;
+      sendVerifyEmail(user.email, validation_link)
+      .then(msg => {
+        req.flash('info', {msg: `An e-mail has been sent to ${msg.envelope.to} with further instructions.`});
+        res.redirect('/login');
+      })
+      .catch(sendEmailErrors => {
+        console.log(sendEmailErrors);
+        req.flash('errors', {msg: 'The email address is invalid or disposable and can not be verified' });
+        res.redirect('/signup');
+      })
+    })
+    .catch(e => console.log(`===> Db save error ${e}`));
+};
+
+
+function sendVerifyEmail(email, validation_link) {
+  if (!mailChecker.isValid(email)) {
+    throw new Error(`mailChecker: ${email} not valid.`);
+  }
+
+  let transporter = nodemailer.createTransport({
+    service: 'SendGrid',
+    auth: {
+      user: process.env.SENDGRID_USER,
+      pass: process.env.SENDGRID_PASSWORD
+        }
     });
+
     const mailOptions = {
-      to: user.email,
+      to: email,
       from: 'hackathon@starter.com',
       subject: 'Please verify your email address on Hackathon Starter',
       text: `Thank you for registering with hackathon-starter.\n\n
         This verify your email address please click on the following link, or paste this into your browser:\n\n
-        http://${req.headers.host}/account/verify/${token}\n\n
+        ${validation_link}
         \n\n
         Thank you!`
     };
-    
-    console.log(mailOptions)
 
-    // return transporter.sendMail(mailOptions)
-    //   .then(() => {
-    //     req.flash('info', { msg: `An e-mail has been sent to ${req.user.email} with further instructions.` });
-    //   })
-    //   .catch((err) => {
-    //     if (err.message === 'self signed certificate in certificate chain') {
-    //       console.log('WARNING: Self signed certificate in certificate chain. Retrying with the self signed certificate. Use a valid certificate if in production.');
-    //       transporter = nodemailer.createTransport({
-    //         service: 'SendGrid',
-    //         auth: {
-    //           user: process.env.SENDGRID_USER,
-    //           pass: process.env.SENDGRID_PASSWORD
-    //         },
-    //         tls: {
-    //           rejectUnauthorized: false
-    //         }
-    //       });
-    //       return transporter.sendMail(mailOptions)
-    //         .then(() => {
-    //           req.flash('info', { msg: `An e-mail has been sent to ${req.user.email} with further instructions.` });
-    //         });
-    //     }
-    //     console.log('ERROR: Could not send verifyEmail email after security downgrade.\n', err);
-    //     req.flash('errors', { msg: 'Error sending the email verification message. Please try again shortly.' });
-    //     return err;
-    //   });
-  };
-
-  createRandomToken
-    .then(setRandomToken)
-    .then(sendVerifyEmail)
-    .then(() => {
-        // req.logIn(user, (err) => {
-        //   if (err) {
-        //     return next(err);
-        //   }
-        //   res.redirect('/account');
-        // });
-      res.redirect('/account')
-    })
-    .catch(err => console.log('err from verifyEmail', err));
+    return transporter.sendMail(mailOptions);
 };
 
-function _verifyEmail (user) {
-  console.log('from verifyEmail', user.email);
-}
 
 
 /**
@@ -408,85 +353,86 @@ exports.getVerifyEmailToken = (req, res, next) => {
  * GET /account/verify
  * Verify email address
  */
-exports.getVerifyEmail = (req, res, next) => {
-  if (req.user.emailVerified) {
-    req.flash('info', { msg: 'The email address has been verified.' });
-    return res.redirect('/account');
-  }
+// exports.getVerifyEmail = (req, res, next) => {
+//   if (req.user.emailVerified) {
+//     req.flash('info', { msg: 'The email address has been verified.' });
+//     return res.redirect('/account');
+//   }
 
-  if (!mailChecker.isValid(req.user.email)) {
-    req.flash('errors', { msg: 'The email address is invalid or disposable and can not be verified.  Please update your email address and try again.' });
-    return res.redirect('/account');
-  }
+//   if (!mailChecker.isValid(req.user.email)) {
+//     req.flash('errors', { msg: 'The email address is invalid or disposable and can not be verified.  Please update your email address and try again.' });
+//     return res.redirect('/account');
+//   }
 
-  const createRandomToken = randomBytesAsync(16)
-    .then((buf) => buf.toString('hex'));
+//   const createRandomToken = randomBytesAsync(16)
+//     .then((buf) => buf.toString('hex'));
 
-  const setRandomToken = (token) => {
-    User
-      .findOne({ email: req.user.email })
-      .then((user) => {
-        user.emailVerificationToken = token;
-        user = user.save();
-      });
-    return token;
-  };
+//   const setRandomToken = (token) => {
+//     User
+//       .findOne({ email: req.user.email })
+//       .then((user) => {
+//         user.emailVerificationToken = token;
+//         user = user.save();
+//       });
+//     return token;
+//   };
 
-  const sendVerifyEmail = (token) => {
-    let transporter = nodemailer.createTransport({
-      service: 'SendGrid',
-      auth: {
-        user: process.env.SENDGRID_USER,
-        pass: process.env.SENDGRID_PASSWORD
-      }
-    });
-    const mailOptions = {
-      to: req.user.email,
-      from: 'hackathon@starter.com',
-      subject: 'Please verify your email address on Hackathon Starter',
-      text: `Thank you for registering with hackathon-starter.\n\n
-        This verify your email address please click on the following link, or paste this into your browser:\n\n
-        http://${req.headers.host}/account/verify/${token}\n\n
-        \n\n
-        Thank you!`
-    };
+//   const sendVerifyEmail = (token) => {
+//     let transporter = nodemailer.createTransport({
+//       service: 'SendGrid',
+//       auth: {
+//         user: process.env.SENDGRID_USER,
+//         pass: process.env.SENDGRID_PASSWORD
+//       }
+//     });
+//     const mailOptions = {
+//       to: req.user.email,
+//       from: 'hackathon@starter.com',
+//       subject: 'Please verify your email address on Hackathon Starter',
+//       text: `Thank you for registering with hackathon-starter.\n\n
+//         This verify your email address please click on the following link, or paste this into your browser:\n\n
+//         http://${req.headers.host}/account/verify/${token}\n\n
+//         \n\n
+//         Thank you!`
+//     };
     
-    console.log(mailOptions)
+//     console.log(mailOptions)
 
-    return transporter.sendMail(mailOptions)
-      .then(() => {
-        req.flash('info', { msg: `An e-mail has been sent to ${req.user.email} with further instructions.` });
-      })
-      .catch((err) => {
-        if (err.message === 'self signed certificate in certificate chain') {
-          console.log('WARNING: Self signed certificate in certificate chain. Retrying with the self signed certificate. Use a valid certificate if in production.');
-          transporter = nodemailer.createTransport({
-            service: 'SendGrid',
-            auth: {
-              user: process.env.SENDGRID_USER,
-              pass: process.env.SENDGRID_PASSWORD
-            },
-            tls: {
-              rejectUnauthorized: false
-            }
-          });
-          return transporter.sendMail(mailOptions)
-            .then(() => {
-              req.flash('info', { msg: `An e-mail has been sent to ${req.user.email} with further instructions.` });
-            });
-        }
-        console.log('ERROR: Could not send verifyEmail email after security downgrade.\n', err);
-        req.flash('errors', { msg: 'Error sending the email verification message. Please try again shortly.' });
-        return err;
-      });
-  };
+//     return transporter.sendMail(mailOptions)
+//       .then(() => {
+//         req.flash('info', { msg: `An e-mail has been sent to ${req.user.email} with further instructions.` });
+//       })
+//       .catch((err) => {
+//         if (err.message === 'self signed certificate in certificate chain') {
+//           console.log('WARNING: Self signed certificate in certificate chain. Retrying with the self signed certificate. Use a valid certificate if in production.');
+//           transporter = nodemailer.createTransport({
+//             service: 'SendGrid',
+//             auth: {
+//               user: process.env.SENDGRID_USER,
+//               pass: process.env.SENDGRID_PASSWORD
+//             },
+//             tls: {
+//               rejectUnauthorized: false
+//             }
+//           });
+//           return transporter.sendMail(mailOptions)
+//             .then(() => {
+//               req.flash('info', { msg: `An e-mail has been sent to ${req.user.email} with further instructions.` });
+//             });
+//         }
+//         console.log('ERROR: Could not send verifyEmail email after security downgrade.\n', err);
+//         req.flash('errors', { msg: 'Error sending the email verification message. Please try again shortly.' });
+//         return err;
+//       });
+//   };
 
-  createRandomToken
-    .then(setRandomToken)
-    .then(sendVerifyEmail)
-    .then(() => res.redirect('/account'))
-    .catch(next);
-};
+//   createRandomToken
+//     .then(setRandomToken)
+//     .then(sendVerifyEmail)
+//     .then(() => res.redirect('/account'))
+//     .catch(next);
+// };
+
 
 /**
  * POST /reset/:token
