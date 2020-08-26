@@ -172,14 +172,14 @@ function sendVerifyEmail(emailAddr, emailVerificationToken) {
       subject: 'Please verify your email address on Hackathon Starter',
       text: `Thank you for registering with hackathon-starter.\n\n
         This verifies your email address and activates your account.
-        Please copy following code and paste it on Activation Code field. \n\n
+        Please copy following code and paste it into Activation Code field. \n\n
         ${emailVerificationToken}
         \n\n
         If you do not see the page with Activation Code field, go to login page and will be redirected there.
 
         Thank you!`
     };
-    // comment follwing two lines if you want to send email
+    // comment following two lines if you want to send email
     console.log(mailOptions.text)
     return new Promise(resolve => resolve({envelope: {to: emailAddr}}));
     return transporter.sendMail(mailOptions);
@@ -193,7 +193,8 @@ function sendVerifyEmail(emailAddr, emailVerificationToken) {
 exports.postActivate = (req, res, next) => {
 
   const validationErrors = [];
-  if (req.body.token && (!validator.isHexadecimal(req.body.token))) validationErrors.push({ msg: 'Invalid Token.  Please retry.' });
+  if (req.body.token && (!validator.isHexadecimal(req.body.token)))
+    validationErrors.push({ msg: 'Invalid Token.  Please retry.' });
   if (validationErrors.length) {
     req.flash('errors', validationErrors);
     return res.redirect('/account');
