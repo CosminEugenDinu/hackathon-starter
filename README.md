@@ -34,6 +34,6 @@ App built on hackathon-starter boilderplate: https://github.com/sahat/hackathon-
 
 License
 -------
-This software is distributed under The MIT License (MIT)
-Copyright (c) 2014-2016 Sahat Yalkabov
+This software is distributed under The MIT License (MIT).
+Copyright (c) 2014-2016 Sahat Yalkabov.
 Copy of LICENSE is included in this repository.
