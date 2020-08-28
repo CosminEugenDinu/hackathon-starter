@@ -19,6 +19,7 @@ const expressStatusMonitor = require('express-status-monitor');
 const sass = require('node-sass-middleware');
 const multer = require('multer');
 
+
 const upload = multer({ dest: path.join(__dirname, 'uploads') });
 
 /**
@@ -123,10 +124,30 @@ app.use('/js/lib', express.static(path.join(__dirname, 'node_modules/bootstrap/d
 app.use('/js/lib', express.static(path.join(__dirname, 'node_modules/jquery/dist'), { maxAge: 31557600000 }));
 app.use('/webfonts', express.static(path.join(__dirname, 'node_modules/@fortawesome/fontawesome-free/webfonts'), { maxAge: 31557600000 }));
 
+
+/**
+ * Google recaptcha - express-recaptcha
+ */
+const Recaptcha = require('express-recaptcha').RecaptchaV3;
+const SITE_KEY = process.env.GOOGLE_RECAPTCHA3_SITE_KEY;
+const SECRET_KEY = process.env.GOOGLE_RECAPTCHA3_SECRET_KEY;
+const recaptcha = new Recaptcha(SITE_KEY, SECRET_KEY,
+  {callback: 'captchaCallback'});
+
 /**
  * Primary app routes.
  */
 app.get('/', homeController.index);
+app.get('/captcha', recaptcha.middleware.render, (req, res)=>{
+  res.render('captcha', {captchaScript: res.recaptcha});
+});
+app.post('/captcha', recaptcha.middleware.verify, (req, res)=>{
+  res.send(`
+  ReCaptcha worked.
+  value is: ${JSON.stringify(req.recaptcha)}
+  `);
+});
+
 app.get('/login', userController.getLogin);
 app.post('/login', userController.postLogin);
 app.get('/logout', userController.logout);
