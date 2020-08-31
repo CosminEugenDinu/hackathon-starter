@@ -1,6 +1,10 @@
+
+
 /* eslint-env jquery, browser */
 $(document).ready(() => {
 
-  // Place JavaScript code here...
+const form = document.getElementById('captcha-form-id');
+const targetButton = document.getElementById('captcha-button-id')
+implementRecaptcha(form, targetButton);
 
 });
