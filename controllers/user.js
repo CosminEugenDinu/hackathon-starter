@@ -1,4 +1,5 @@
 const { promisify } = require('util');
+const axios = require('axios');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const passport = require('passport');
@@ -14,11 +15,16 @@ const randomBytesAsync = promisify(crypto.randomBytes);
  * Login page.
  */
 exports.getLogin = (req, res) => {
+
   if (req.user) {
     return res.redirect('/');
   }
+
+  const unknownUser = !(req.user);
   res.render('account/login', {
-    title: 'Login'
+    title: 'Login',
+    sitekey: process.env.RECAPTCHA_SITE_KEY,
+    unknownUser
   });
 };
 
@@ -26,34 +32,53 @@ exports.getLogin = (req, res) => {
  * POST /login
  * Sign in using email and password.
  */
-exports.postLogin = (req, res, next) => {
+exports.postLogin = async (req, res, next) => {
   const validationErrors = [];
-  if (!validator.isEmail(req.body.email)) validationErrors.push({ msg: 'Please enter a valid email address.' });
-  if (validator.isEmpty(req.body.password)) validationErrors.push({ msg: 'Password cannot be blank.' });
 
-  if (validationErrors.length) {
-    req.flash('errors', validationErrors);
-    return res.redirect('/login');
+  function getValidateReCAPTCHA(token) {
+    return axios.post(`https://www.google.com/recaptcha/api/siteverify?secret=${process.env.RECAPTCHA_SECRET_KEY}&response=${token}`,
+      {},
+      {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8' },
+      });
   }
-  req.body.email = validator.normalizeEmail(req.body.email, { gmail_remove_dots: false });
+  
+  try {
+    const validateReCAPTCHA = await getValidateReCAPTCHA(req.body['g-recaptcha-response']);
+    if (!validateReCAPTCHA.data.success) {
+      validationErrors.push({ msg: 'reCAPTCHA validation failed.' });
+    }
 
-  passport.authenticate('local', (err, user, info) => {
-    if (err) { return next(err); }
-    if (!user) {
-      req.flash('errors', info);
+    if (!validator.isEmail(req.body.email)) validationErrors.push({ msg: 'Please enter a valid email address.' });
+    if (validator.isEmpty(req.body.password)) validationErrors.push({ msg: 'Password cannot be blank.' });
+
+    if (validationErrors.length) {
+      req.flash('errors', validationErrors);
       return res.redirect('/login');
     }
-    if (!user.emailVerified){
-      req.flash("errors", {msg: "Sorry! Your email is not verified!\nPlease follow the link we sent to your email."})
-      return res.redirect('/account/activate');
-      return res.redirect('/login');
-    }
-    req.logIn(user, (err) => {
+    req.body.email = validator.normalizeEmail(req.body.email, { gmail_remove_dots: false });
+
+    passport.authenticate('local', (err, user, info) => {
       if (err) { return next(err); }
-      req.flash('success', { msg: 'Success! You are logged in.' });
-      res.redirect(req.session.returnTo || '/');
-    });
-  })(req, res, next);
+      if (!user) {
+        req.flash('errors', info);
+        return res.redirect('/login');
+      }
+      if (!user.emailVerified){
+        req.flash("errors", {msg: "Sorry! Your email is not verified!\nPlease follow the link we sent to your email."})
+        return res.redirect('/account/activate');
+        return res.redirect('/login');
+      }
+      req.logIn(user, (err) => {
+        if (err) { return next(err); }
+        req.flash('success', { msg: 'Success! You are logged in.' });
+        res.redirect(req.session.returnTo || '/');
+      });
+    })(req, res, next);
+  }
+  catch (e) {
+    console.log(e);
+  }
 };
 
 /**
