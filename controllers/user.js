@@ -34,14 +34,6 @@ exports.getLogin = (req, res) => {
  */
 exports.postLogin = async (req, res, next) => {
   const validationErrors = [];
-
-  function getValidateReCAPTCHA(token) {
-    return axios.post(`https://www.google.com/recaptcha/api/siteverify?secret=${process.env.RECAPTCHA_SECRET_KEY}&response=${token}`,
-      {},
-      {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8' },
-      });
-  }
   
   try {
     const validateReCAPTCHA = await getValidateReCAPTCHA(req.body['g-recaptcha-response']);
@@ -102,8 +94,12 @@ exports.getSignup = (req, res) => {
   if (req.user) {
     return res.redirect('/');
   }
+
+  const unknownUser = !(req.user);
   res.render('account/signup', {
-    title: 'Create Account'
+    title: 'Create Account',
+    sitekey: process.env.RECAPTCHA_SITE_KEY,
+    unknownUser
   });
 };
 
@@ -127,27 +123,36 @@ exports.getActivate = (req, res) => {
  * Create a new local account.
  */
 
-exports.postSignup = (req, res, next) => {
+exports.postSignup = async (req, res, next) => {
   const validationErrors = [];
 
-  if (!validator.isEmail(req.body.email)) validationErrors.push({ msg: 'Please enter a valid email address.' });
-  if (!validator.isLength(req.body.password, { min: 8 })) validationErrors.push({ msg: 'Password must be at least 8 characters long' });
-  if (req.body.password !== req.body.confirmPassword) validationErrors.push({ msg: 'Passwords do not match' });
-
-  if (validationErrors.length) {
-    req.flash('errors', validationErrors);
-    return res.redirect('/signup');
-  }
-
-  req.body.email = validator.normalizeEmail(req.body.email, { gmail_remove_dots: false });
-
-  User.findOne({ email: req.body.email }, (err, existingUser) => {
-    if (err) { return next(err); }
-    if (existingUser) {
-      req.flash('errors', { msg: 'Account with that email address already exists.' });
-      return res.redirect('/login');
+  try {
+    const validateReCAPTCHA = await getValidateReCAPTCHA(req.body['g-recaptcha-response']);
+    if (!validateReCAPTCHA.data.success) {
+      validationErrors.push({ msg: 'reCAPTCHA validation failed.' });
     }
-  })
+    if (!validator.isEmail(req.body.email)) validationErrors.push({ msg: 'Please enter a valid email address.' });
+    if (!validator.isLength(req.body.password, { min: 8 })) validationErrors.push({ msg: 'Password must be at least 8 characters long' });
+    if (req.body.password !== req.body.confirmPassword) validationErrors.push({ msg: 'Passwords do not match' });
+
+    if (validationErrors.length) {
+      req.flash('errors', validationErrors);
+      return res.redirect('/signup');
+    }
+
+    req.body.email = validator.normalizeEmail(req.body.email, { gmail_remove_dots: false });
+
+    User.findOne({ email: req.body.email }, (err, existingUser) => {
+      if (err) { return next(err); }
+      if (existingUser) {
+        req.flash('errors', { msg: 'Account with that email address already exists.' });
+        return res.redirect('/login');
+      }
+    })
+  }
+  catch (e) {
+    console.log(e);
+  }
 
   const createRandomToken = randomBytesAsync(16)
     .then((buf) => buf.toString('hex'));
@@ -607,3 +612,12 @@ exports.postForgot = (req, res, next) => {
     .then(() => res.redirect('/forgot'))
     .catch(next);
 };
+
+
+function getValidateReCAPTCHA(token) {
+  return axios.post(`https://www.google.com/recaptcha/api/siteverify?secret=${process.env.RECAPTCHA_SECRET_KEY}&response=${token}`,
+    {},
+    {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8' },
+    });
+}
