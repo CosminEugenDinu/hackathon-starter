@@ -4,6 +4,10 @@
 
 ### *Demo*
 
+### *Prerequisites*
+- Gnu/Linux
+- [MongoDb](https://www.mongodb.com/), [NodeJS](https://nodejs.org/en/download/package-manager/), [NPM](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm)
+
 ### *Install*
 ```bash
 git clone https://github.com/CosminEugenDinu/nodejs-authentication-app.git
@@ -26,7 +30,7 @@ npm run dev
 ---------------------
 ## Hackathon-Starter
 
-App built on hackathon-starter boilderplate: https://github.com/sahat/hackathon-starter
+App built using hackathon-starter boilderplate: https://github.com/sahat/hackathon-starter
 
 
 [![Dependency Status](https://david-dm.org/sahat/hackathon-starter/status.svg?style=flat)](https://david-dm.org/sahat/hackathon-starter) [![Build Status](https://travis-ci.org/sahat/hackathon-starter.svg?branch=master)](https://travis-ci.org/sahat/hackathon-starter) [![Join the chat at https://gitter.im/sahat/hackathon-starter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/sahat/hackathon-starter?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) [![Thinkful Pair on Node](https://tf-assets-staging.s3.amazonaws.com/badges/thinkful_repo_badge.svg)](http://start.thinkful.com/node/)
