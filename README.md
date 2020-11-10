@@ -12,7 +12,16 @@
 ```bash
 git clone https://github.com/CosminEugenDinu/nodejs-authentication-app.git
 cd nodejs-authentication-app
+
+# install dependencies
 npm install
+
+# edit .env to match your settings
+cp .env.example .env
+
+# start mongodb server service like:
+sudo service mongodb start
+
 npm app.js
 # or
 npm run dev
