@@ -1,6 +1,8 @@
 # Node.js Complete Authentication App
 
 ### *Features*
+- Google reCaptcha v2 on signup, login, contact
+- Signup with activation code sent via email
 
 ### *Demo*
 
