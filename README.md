@@ -15,7 +15,13 @@ cd nodejs-authentication-app
 
 # install dependencies
 npm install
-
+```
+If you encountered an error like: *Node Sass does not yet support your current environment: Linux 64-bit with Unsupported runtime (88)*, run:
+```bash
+npm rebuild node-sass
+# and be patience ... it might last few minutes
+```
+```bash
 # edit .env to match your settings
 cp .env.example .env
 
