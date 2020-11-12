@@ -1,6 +1,7 @@
 # Node.js Complete Authentication App
 
 ### *Features*
+- All features from [original_repo](https://github.com/sahat/hackathon-starter) plus:
 - Google reCaptcha v2 on signup, login, contact
 - Signup with activation code sent via email
 
